@@ -1,0 +1,476 @@
+######################################
+
+# Diseño experimental y muestreo en biología
+# Regresión
+# Rodrigo S. Rios & Andrea P. Loayza
+
+
+##################################################################################
+#Establecer directorio
+setwd("~/Desktop/")
+
+##################################################################################
+# Cargar (e instalar) paquetes
+library(arm)
+library(car)
+library(ggplot2)
+library(lattice)
+library(lawstat)
+library(ggbeeswarm)
+library(outliers)
+library(scales)
+
+######################################
+
+## Datos de fecundidad y tamaños de hembras del pez Pike, Esox lucius, un depredador de salmón. Se quiere ver si el tamaño puede predecir la cantidad de huevos (fecundad) como medida de capacidad reproductiva.
+
+# Importar los datos de pike
+pike <- read.csv("pike.csv", sep = ",", header = TRUE)
+
+# EXPLORACION DE DATOS
+
+# Usar 'str' para inspeccionar el dataframe
+str(pike)
+
+#  'data.frame': 56 obs. of  2 variables:
+# $ length   : int  - pike length (en mm)
+# $ fecundity: int  - pike fecundity (no. de huevos)
+
+# Hay valores faltantes?
+colSums(is.na(pike))
+
+# length fecundity    loglen    logfec
+#  0         0         0         0
+# No hay valores que faltan
+
+
+# OUTLIERS
+
+# La figura es un panel múltiple con gráficos de puntos a para ver todas las variables continuas simultáneamente.
+
+
+# Primero hacer un vector de la variable de interés
+Names <- c("length", "fecundity")
+
+# Luego graficar
+dotplot(as.matrix(as.matrix(pike[,Names])),
+        groups=FALSE,
+        strip = strip.custom(bg = 'white',
+                             par.strip.text = list(cex = 1.2)),
+        scales = list(x = list(relation = "free", draw = TRUE),
+                      y = list(relation = "free", draw = FALSE)),
+        col = 1, cex  = 1, pch = 16,
+        xlab = list(label = "Valor de la variable", cex = 1.2),
+        ylab = list(label = "Orden de los datos", cex = 1.2))
+
+# Usar el test de Grubbs' test para ver si un valor que está muy por encima o por dbajo de la media es un outlier
+
+# Para el largo en pike:
+grubbs.test(pike$length, type = 10)
+      # se usa type 10 para detectar sólo un outlier
+
+# Grubbs test for one outlier
+#
+# data:  pike$length
+# G = 1.7853, U = 0.9410, p-value = 1
+# alternative hypothesis: highest value 97 is an outlier
+
+# Para el peso en pike:
+grubbs.test(pike$fecundity, type = 10)
+
+  # data:  pike$fecundity
+# G = 2.92041, U = 0.84211, p-value = 0.06794
+# alternative hypothesis: highest value 1272356 is an outlier
+
+######################################
+# NORMALITY AND HOMOGENEITY OF DEPENDENT VARIABLES
+
+###OJO: Se puede usar la función plot() también para hacer estas evaluaciones de manera visual###
+
+
+# Figura - Plots de Frecuencia
+par(mfrow = c(2,1), mar = c(4,5,2,3), cex.lab = 1)
+hist(pike$length,  xlab = "Largo (cm)",
+     col = "lightblue", border = "black", main = "")
+hist((pike$fecundity/1000),  xlab = "Fecundidad (miles de huevos)", col = "#CC79A7", border = "black",  main = "")
+
+
+# Test Shapiro-Wilk para desviación de la normalidad
+shapiro.test(pike$length)
+
+# data:  pike$length
+# W = 0.92941, p-value = 0.002815
+
+# Test Shapiro-Wilk para desviación de la normalidad
+shapiro.test(pike$fecundity)
+
+# Shapiro-Wilk normality test
+#
+# data:  pike$fecundity
+# W = 0.85732, p-value = 9.373e-06
+
+# Nota
+# p-value = 9.373e-06 = 0.0000009373; i.e. P <0.0001.
+
+
+# Patrones en la varianza?
+# Fig.
+ggplot(pike, aes(x = length, y = (fecundity/1000))) +
+  xlim(35,100) + ylim(-10,1500) +
+  geom_point(shape = 16, size = 3, alpha = 0.7) +
+  theme(panel.background = element_blank()) +
+  theme(panel.border = element_rect(fill = NA, size = 1)) +
+  theme(strip.background = element_rect(fill = "white",
+                   color = "white", size = 1)) +
+  theme(text = element_text(size=13)) +
+  xlab("Largo (cm)") + ylab("Fecundidad (miles de huevos)")
+
+# Noten que la variaza de los datos incrementa a medida que los valores de largo/peso incrementan. Esto indica que no hay homogeneidad
+
+# Noten también que las relación es ligeramente curva (no lineal)
+
+######################################
+#CALCULAR EL NÚMERO DE CEROS
+
+# Cuál es el porcentage de ceros?
+
+sum(pike$length == 0) * 100 / nrow(pike)
+# 0% ceros
+
+sum(pike$fecundity == 0) * 100 / nrow(pike)
+# 0% ceros
+
+######################################
+#COLINEARIDAD
+
+# La colinearidad no es un problema cuando sólo se comparan dos grupos de variables (1 variable explicativa)
+
+#####################################
+#
+# La exploración de datos mostró:
+#  
+# 1. No hay outliers significativos en ninguna de las variables.
+# 2. Ambas variables NO son normales y hay evidencia de que no hay homogeneidad de varianza
+# 3. No hay ceros en la variable de respuesta.
+# 4. No hay colinearidad
+# 5.  El objetivo es predecir la fecundidad a partir del largo
+
+#####################################
+
+# Objetivo 1: Ajustar una linea de regresión a la relación largo-fecundidad para que se pueda predecir la fecundidad a partir del largo
+
+# Length es la variable independiente  
+# Fecundity es la variable dependiente
+
+
+## Empezar con una regresión lineal simple
+##-
+
+# Crear un objeto Model1 - que es el 'modelo' de la regresión lineal simple
+
+Model1 <- lm(fecundity ~ length, data = pike)
+
+#Obtener los resultados con el comando 'summary'
+summary(Model1)
+
+# Call:
+# lm(formula = fecundity ~ length, data = pike)
+#
+# Residuals:
+#   Min      1Q  Median      3Q     Max
+# -378124  -68995   -5152   52763  498143
+#
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)
+
+# (Intercept)  -630655      69404  -9.087 1.81e-12 ***
+# length         15270       1045  14.612  < 2e-16 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+#
+# Residual standard error: 144100 on 54 degrees of freedom
+# Multiple R-squared:  0.7981, Adjusted R-squared:  0.7944
+# F-statistic: 213.5 on 1 and 54 DF,  p-value: < 2.2e-16
+
+# Obtener la tabla de ANOVA anova()
+anova(Model1)
+
+# Pero, es válido el modelo?
+
+################################
+
+# Validación del modelo
+
+# Graficar los valores residuales vs los valores ajustados.
+# Fig.
+Res1 <- resid(Model1, test='pearson')
+Fit1 <- fitted(Model1)
+
+par(mfrow = c(1,1), mar = c(5,5,2,2))
+plot(x = Fit1, y = Res1,
+     xlab = "Valores ajustados",
+     ylab = "Residuos",
+      pch = 16, cex = 1.5)
+abline(h = 0, lty = 2)
+abline(v = 0, lty = 2)
+
+# Problemas
+# 1. La varianza no es consistente a lo largo del eje x
+# 2. Valores ajustados negativos
+# 3. Un patrón en los residuos
+
+# normalidad de los residuos - examinar el gráfico
+# Fig.
+p <- ggplot()
+p <- p + ylab("Frecuencia")
+p <- p + xlab("Residuos de Pearson")
+p <- p + theme(text = element_text(size=15))
+p <- p + theme(panel.background = element_blank())
+p <- p + theme(panel.border = element_rect(fill = NA,
+                                           colour = "black", size = 1))
+p <- p + theme(strip.background = element_rect(fill = "white",
+                                               color = "white", size = 1))
+p <- p + theme(text = element_text(size=15))
+p <- p + geom_histogram(colour = "black", fill = "white",
+                        data = pike, aes(Res1), bins = 12)
+p
+# Se ve bastante normal
+
+# Confirmar con una prueba de Shapiro-Wilk
+shapiro.test(Res1)
+
+#     Shapiro-Wilk normality test
+#
+# data:  Res1
+# W = 0.94138, p-value = 0.008899
+
+
+# Ajustar la linea de regresión a los datos
+# Fig.
+
+ggplot(pike, aes(x = length, y = (fecundity/1000))) +
+  xlim(35,100) + ylim(-10,1500) +
+  geom_point(shape = 16, size = 3, alpha = 0.7) +
+  geom_smooth(method = 'lm', colour = '#CC79A7', se = FALSE, size = 1.5) +
+  theme(panel.background = element_blank()) +
+  theme(panel.border = element_rect(fill = NA, size = 1)) +
+  theme(strip.background = element_rect(fill = "white",
+                   color = "white", size = 1)) +
+  theme(text = element_text(size=13)) +
+  xlab("Largo (cm)") + ylab("Fecundidad (miles de huevos)")
+
+# Observaciones influyentes en el modelo?
+# Medir usando Cook's distance
+# Fig.
+par(mfrow = c(1, 1))
+plot(cooks.distance(Model1),
+     type = "h",
+     xlab = "Observation",
+     ylab = "Cook's distance",
+     ylim = c(-0.1, 1.2))
+abline(h=1, lty = 2)
+# Todos menores a 1 - esto está bien
+
+###############################
+# Entonces
+# 1. Patrón raro en la varianza de los residuos (residuos)
+# 2. Residuos no están distribuidos normalmente
+# 3. Modelo no se ajusta correctamente
+# 4. No hay outliers
+
+# Debemos hacernos cargo del patrón con los residuos
+# Hay varios métodos, algunos simples otros sofisticados
+# Hagamos lo simple...
+
+# Una solución es transformar el peso y el largo.
+# Intentemos una transformación log10
+
+# Tomar el logaritmo del largo
+pike$loglen <- log10(pike$length)
+
+# Tomar el logaritmo de la fecundidad
+pike$logfec <- log10(pike$fecundity)
+
+
+# Fig. Gráficos de frecuencia
+par(mfrow = c(2,1), mar = c(4,5,2,3), cex.lab = 1)
+hist(pike$loglen,  xlab = "Log10 Largo (cm)",
+     col = "lightblue", border = "black", main = "")
+hist(pike$logfec,  xlab = "Log10 fecundidad",
+     col = "#CC79A7", border = "black",  main = "")
+
+# Prueba Shapiro-Wilk test para desviación de normalidad
+shapiro.test(pike$loglen)
+
+#      Shapiro-Wilk normality test
+#
+# data:  pike$loglen
+# W = 0.93747, p-value = 0.006065
+
+# Prueba Shapiro-Wilk test para desviación de normalidad
+shapiro.test(pike$logfec)
+
+#    Shapiro-Wilk normality test
+#
+# data:  pike$logfec
+# W = 0.9621, p-value = 0.07583
+
+# Fig
+ggplot(pike, aes(x = loglen, y = logfec)) +
+  xlim(1.55, 2.02) +
+  geom_point(shape = 16, size = 3, alpha = 0.7) +
+  theme(panel.background = element_blank()) +
+  theme(panel.border = element_rect(fill = NA, size = 1)) +
+  theme(strip.background = element_rect(fill = "white",
+                                        color = "white", size = 1)) +
+  theme(text = element_text(size=13)) +
+  xlab(expression(Log[10]~largo~(cm))) +
+  ylab(expression(Log[10]~fecundidad~(huevos)))
+
+# Re ajustar el modelo usando las variables transformadas
+Model2 <- lm(logfec ~ loglen,
+                  data = pike)
+
+# Obtener resutlados de los parámetros con el comando 'summary'
+summary(Model2)
+
+# Call:
+# lm(formula = logfec ~ loglen, data = pike)
+#
+# Residuals:
+#   Min       1Q   Median       3Q      Max
+# -0.40619 -0.09650  0.00845  0.11641  0.31296
+#
+# Coefficients:
+#               Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)  -0.8185     0.2718  -3.011   0.00395 **
+# loglen        3.4388     0.1518  22.655  < 2e-16 ***
+#   ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+#
+# Residual standard error: 0.1452 on 54 degrees of freedom
+# Multiple R-squared:  0.9048, Adjusted R-squared:  0.903
+# F-statistic: 513.2 on 1 and 54 DF,  p-value: < 2.2e-16
+
+# Pero, es válido el modelo?
+
+################################
+
+# Validación del modelo
+
+# Graficar los residuos vs valores ajustados
+# Fig.
+Res2 <- resid(Model2, test='pearson')
+Fit2 <- fitted(Model2)
+
+par(mfrow = c(1,1), mar = c(5,5,2,2))
+plot(x = Fit2,
+     y = Res2,
+     xlab = "Valores ajustados",
+     ylab = "Residuos",
+     pch = 16, cex = 1.5)
+abline(h = 0, lty = 2)
+abline(v = 0, lty = 2)
+# Una gran mejora
+
+
+# Fig.
+# Normalidad de los residuos - empecemos graficando
+p <- ggplot()
+p <- p + ylab("Frecuencia")
+p <- p + xlab("Residuos de Pearson")
+p <- p + theme(text = element_text(size=15))
+p <- p + theme(panel.background = element_blank())
+p <- p + theme(panel.border = element_rect(fill = NA,
+                                           colour = "black", size = 1))
+p <- p + theme(strip.background = element_rect(fill = "white",
+                                               color = "white", size = 1))
+p <- p + theme(text = element_text(size=15))
+p <- p + geom_histogram(colour = "black", fill = "white",
+                        data = pike, aes(Res2), bins = 12)
+p
+# No está mal
+
+#Confirmar con prueba  Shapiro-Wilk
+shapiro.test(Res2)
+
+#      Shapiro-Wilk normality test
+#
+# data:  Res2
+# W = 0.97494, p-value = 0.2927
+
+# Ajustar regresión lineal a los datos
+# Fig.
+ggplot(pike, aes(x = loglen, y = logfec)) +
+  xlim(1.55, 2.02) +
+  geom_point(shape = 16, size = 3, alpha = 0.7) +
+  geom_smooth(method = 'lm', colour = '#CC79A7', se = FALSE, size = 1.5) +
+  theme(panel.background = element_blank()) +
+  theme(panel.border = element_rect(fill = NA, size = 1)) +
+  theme(strip.background = element_rect(fill = "white",
+                   color = "white", size = 1)) +
+  theme(text = element_text(size=13)) +
+  xlab(expression(Log[10]~largo~(cm))) +
+  ylab(expression(Log[10]~fecundidad~(huevos)))
+
+# Observaciones influyentes en el modelo?
+# Medir usando Cook's distance
+# Fig.
+par(mfrow = c(1, 1))
+plot(cooks.distance(Model2),
+     type = "h",
+     xlab = "Observation",
+     ylab = "Cook's distance",
+     ylim = c(-0.1, 1.1))
+abline(h=1, lty = 2)
+# Todas menores a 1
+
+##############################################
+
+# Obtener los parámetros del modelo con summary()
+summary(Model2)
+
+# Obtener la tabla de ANOVA anova()
+anova(Model2)
+
+# Visualizar el modelo como una figura
+
+range(pike$loglen)
+# 1.55 a 2
+
+MyData <- expand.grid(
+          loglen = seq(1.55, 2,
+          length = 25))
+
+X <- model.matrix(~ loglen, data = MyData)
+
+# Calcular valores de fecundidad predichos
+MyData$Pred <- X %*% coef(Model2)
+
+# Calcular errores estándar
+MyData$SE <- sqrt(  diag(X %*% vcov(Model2) %*% t(X))  )
+
+# y usando los valores predichos y los errores estándar, calcular los intervalos de confianza de 95% cpara las fecundidades predecidas
+MyData$SeUp <- MyData$Pred + 1.96 * MyData$SE
+MyData$SeLo <- MyData$Pred - 1.96 * MyData$SE
+
+# Fig.
+p <- ggplot()
+p <- p + geom_point(data = pike, aes(y = logfec, x = loglen),
+                    shape = 16, size = 2.5,  alpha = 0.7)
+p <- p + xlab(expression(Log[10]~largo~(cm)))
+p <- p + ylab(expression(Log[10]~fecundidad~(huevos)))
+p <- p + theme(text = element_text(size=13))
+p <- p + theme(panel.background = element_blank())
+p <- p + theme(panel.border = element_rect(fill = NA,
+                     colour = "black", size = 1))
+p <- p + theme(strip.background = element_rect(fill = "white",
+                          color = "white", size = 1))
+p <- p + geom_line(data = MyData,aes(x = loglen, y = Pred),
+                 colour = "black", size = 1.2)
+p <- p + geom_ribbon(data = MyData, aes(x = loglen, ymax = SeUp, ymin = SeLo ), alpha = 0.5)
+p
+
+# Una manera más rápida y sencilla
+library(visreg)
+visreg(Model2, line=list(col="#CC79A7"), fill=list(col="lightblue"), points=list(cex=1.5, pch=1), xlab=(expression(Log[10]~largo~(cm))), ylab=(expression(Log[10]~fecundidad~(huevos))))
